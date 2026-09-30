@@ -200,45 +200,39 @@ dir+=((w>=0?1:-1)-dir)*Math.min(dt*10,1);Kr.scale.set(1.15*dir,1.15,1.15);r.rend
 window.THREE?globe():document.getElementById('gl').innerHTML='<p class="m" style="padding-top:35%">Globe 3D membutuhkan koneksi internet</p>';
 
 /* ===== SOUND EFFECTS (Web Audio API) ===== */
-const _actx=new(window.AudioContext||window.webkitAudioContext)();
-function _resumeAudio(){if(_actx.state==='suspended')_actx.resume();document.removeEventListener('click',_resumeAudio);document.removeEventListener('pointerdown',_resumeAudio)}
+var _actx=null;
+function _getACtx(){if(!_actx)_actx=new(window.AudioContext||window.webkitAudioContext)();return _actx}
+function _resumeAudio(){document.removeEventListener('click',_resumeAudio);document.removeEventListener('pointerdown',_resumeAudio)}
 document.addEventListener('click',_resumeAudio);document.addEventListener('pointerdown',_resumeAudio);
 function sfxClick(){
-  if(_actx.state==='suspended')_actx.resume();
-  const o=_actx.createOscillator(),g=_actx.createGain(),f=_actx.createBiquadFilter();
-  o.type='sine';o.frequency.setValueAtTime(1200,_actx.currentTime);o.frequency.exponentialRampToValueAtTime(600,_actx.currentTime+.08);
+  
+  const ac=_getACtx(),o=ac.createOscillator(),g=ac.createGain(),f=ac.createBiquadFilter();
+  o.type='sine';o.frequency.setValueAtTime(1200,ac.currentTime);o.frequency.exponentialRampToValueAtTime(600,ac.currentTime+.08);
   f.type='lowpass';f.frequency.value=3000;
-  g.gain.setValueAtTime(.13,_actx.currentTime);g.gain.exponentialRampToValueAtTime(.001,_actx.currentTime+.15);
-  o.connect(f);f.connect(g);g.connect(_actx.destination);o.start();o.stop(_actx.currentTime+.15);
+  g.gain.setValueAtTime(.13,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.15);
+  o.connect(f);f.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+.15);
 }
 /* Globe drag sound — soft filtered noise loop */
-let _globeNoise=null,_globeGain=null;
+var _globeNoise=null,_globeGain=null;
 function sfxGlobeStart(){
-  if(_actx.state==='suspended')_actx.resume();
+  const ac=_getACtx();
   if(_globeNoise)return;
-  const buf=_actx.createBuffer(1,_actx.sampleRate*2,_actx.sampleRate),d=buf.getChannelData(0);
+  const buf=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate),d=buf.getChannelData(0);
   for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*.3;
-  _globeNoise=_actx.createBufferSource();_globeNoise.buffer=buf;_globeNoise.loop=true;
-  const f=_actx.createBiquadFilter();f.type='bandpass';f.frequency.value=300;f.Q.value=2;
-  _globeGain=_actx.createGain();_globeGain.gain.setValueAtTime(0,_actx.currentTime);_globeGain.gain.linearRampToValueAtTime(.04,_actx.currentTime+.15);
-  _globeNoise.connect(f);f.connect(_globeGain);_globeGain.connect(_actx.destination);_globeNoise.start();
+  _globeNoise=ac.createBufferSource();_globeNoise.buffer=buf;_globeNoise.loop=true;
+  const f=ac.createBiquadFilter();f.type='bandpass';f.frequency.value=300;f.Q.value=2;
+  _globeGain=ac.createGain();_globeGain.gain.setValueAtTime(0,ac.currentTime);_globeGain.gain.linearRampToValueAtTime(.04,ac.currentTime+.15);
+  _globeNoise.connect(f);f.connect(_globeGain);_globeGain.connect(ac.destination);_globeNoise.start();
 }
 function sfxGlobeStop(){
   if(!_globeNoise)return;
-  _globeGain.gain.linearRampToValueAtTime(0,_actx.currentTime+.25);
+  _globeGain.gain.linearRampToValueAtTime(0,_getACtx().currentTime+.25);
   const n=_globeNoise;setTimeout(()=>{try{n.stop()}catch(e){}},300);_globeNoise=null;_globeGain=null;
 }
 /* Wire click sound to all interactive clicks */
 document.addEventListener('click',e=>{if(e.target.closest('button,.btn,.t,.wd,.k,#dm button,#nav button'))sfxClick()});
 /* Wire globe drag sound */
-(function(){
-  const cv2=document.querySelector('#gl canvas');
-  if(!cv2)return;
-  cv2.addEventListener('pointerdown',sfxGlobeStart);
-  cv2.addEventListener('pointerup',sfxGlobeStop);
-  cv2.addEventListener('pointercancel',sfxGlobeStop);
-  cv2.addEventListener('pointerleave',sfxGlobeStop);
-})();
+/* Globe sound is handled inline in globe() */
 
 /* ===== STAR PARTICLES with magnetic cursor ===== */
 (function(){
@@ -246,8 +240,10 @@ document.addEventListener('click',e=>{if(e.target.closest('button,.btn,.t,.wd,.k
   let W=innerWidth,H=innerHeight,mx=W/2,my=H/2;
   function resize(){W=innerWidth;H=innerHeight;cvs.width=W;cvs.height=H}
   resize();addEventListener('resize',resize);
-  addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY});
-  const NP=220,pts=[];
+  document.addEventListener('pointermove',e=>{mx=e.clientX;my=e.clientY});
+  document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY});
+  document.addEventListener('touchmove',e=>{if(e.touches[0]){mx=e.touches[0].clientX;my=e.touches[0].clientY}},{passive:true});
+  const NP=500,pts=[];
   for(let i=0;i<NP;i++)pts.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,r:Math.random()*1.5+.5});
   (function draw(){
     requestAnimationFrame(draw);
